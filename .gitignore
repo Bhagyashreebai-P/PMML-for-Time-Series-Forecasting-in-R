@@ -35,7 +35,7 @@ ar1=arima(residuals(regmodel), order = c(1,0,0), include.mean = FALSE)
 sarima (residuals(regmodel), 1,0,0, no.constant = T)
 
 # Create matrix with data and lag 1 of data as elements
-xl = ts.intersect(ts_data, lag(ts_data,-1)) 
+xl = ts.intersect(ts_data, lag(ts_data,1)) 
 
 # Create variable for adjustment regression
 xnew=xl[,1] - coefficients(ar1)*xl[,2]
