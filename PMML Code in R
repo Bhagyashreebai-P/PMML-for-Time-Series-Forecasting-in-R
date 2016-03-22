@@ -36,8 +36,7 @@ sarima (residuals(regmodel), 1,0,0, no.constant = T)
 xl = ts.intersect(ts_data, lag(ts_data,1)) 
 # Create variable for adjustment regression
 xnew=xl[,1] - coefficients(ar1)*xl[,2]
-length(xnew)
-length(day)
+
 # Adjustment regression
 trend2=1:length(xnew)
 day1=as.factor(day[-1])
@@ -155,11 +154,3 @@ future_WOM=as.factor(future_data$WOM)
 future_model=randomForest((data$Offered)~trend3+Day+Wom,ntree=1000,data=data)
 Forecast=predict(future_model,future_data)
 future_fC=cbind.data.frame(FC_Dates,future_data[,c(2:length(future_data))],Forecast)
-
-
-
-
-
-
-
-
