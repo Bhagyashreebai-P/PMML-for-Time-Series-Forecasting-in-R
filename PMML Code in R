@@ -10,9 +10,11 @@ pacman::p_load(astsa,forecast,zoo,caTools,rpart,arm,RCurl,pmmlTransformations,pm
 data=read.csv("C:\\Users\\karthiv\\Desktop\\Data.csv")
 data$Day=as.factor(data$Day)
 data$Wom=as.factor(data$Wom)
-# Split Data
+
+# Spilit Data
 train=data[1:floor(length(data[,7])/4*3),7]
 test=data[((floor(length(data[,7])/4*3))+1):length(data[,7]),7]
+
 # Linear Model
 ts_data=ts(train,frequency=7)
 trend1=1:length(ts_data)
@@ -28,29 +30,33 @@ SVMmodel=svm(ts_data~trend1+day+wom,probability=TRUE)
 #ANN
 library(nnet)
 ANNmodel=nnet(ts_data~trend1+day+wom,size=12,maxit=10000,linout=T,decay=0.01)
+
 #AR(1)
 ar1=arima(residuals(regmodel), order = c(1,0,0), include.mean = FALSE)  
 sarima (residuals(regmodel), 1,0,0, no.constant = T)
 
 # Create matrix with data and lag 1 of data as elements
 xl = ts.intersect(ts_data, lag(ts_data,1)) 
+
 # Create variable for adjustment regression
 xnew=xl[,1] - coefficients(ar1)*xl[,2]
-
+length(xnew)
+length(day)
 # Adjustment regression
 trend2=1:length(xnew)
+
 day1=as.factor(day[-1])
 wom1=as.factor(wom[-1])
 adjustreg = lm(xnew~trend2+day1+wom1) 
 summary(regmodel)
 summary(adjustreg)
+
 # R-squared
 r1=summary(regmodel)$r.squared
 r2=summary(adjustreg)$r.squared
 Rsquared=data.frame(r1,r2);colnames(Rsquared)=c("regmodel","adjustreg")
 Rsquared
-## export as pmml
-export_xml=saveXML(pmml(adjustreg, model.name = "Linear Regression Models with Autoregressive Errors", app.name = "RR/PMML", dataset = data), file ="Linear Regression Models with Autoregressive Errors.xml")
+
 # Prediction
 monthweeks=function(x) { UseMethod("monthweeks");}
 monthweeks.Date=function(x) { ceiling(as.numeric(format(x,"%d"))/7);}
@@ -69,11 +75,13 @@ Predict_data=data.frame(Date_2,f13,test,fcreg)
 RMSE = function(o, p){sqrt(mean((o - p)^2))}
 rmse_reg=RMSE(Predict_data[,4],Predict_data[,3])
 rmse_reg
+
 fcadjreg=predict(adjustreg,new1)
 Predict_data4=data.frame(Date_2,f13,test,fcadjreg)
 RMSE = function(o, p){sqrt(mean((o - p)^2))}
 rmse_adjreg=RMSE(Predict_data4[,4],Predict_data4[,3])
 rmse_adjreg
+
 # RMSE for random forest
 fcrf=predict(Rfmodel,new)
 Predict_data5=data.frame(Date_2,f13,test,fcrf)
@@ -96,8 +104,11 @@ RMSE=data.frame(rmse_reg,rmse_adjreg,rmse_rf,rmse_svm,rmse_ANN)
 colnames(RMSE)=c("regmodel","adjustreg","Rfmodel","SVMmodel","ANNmodel")
 model_names=names(RMSE)
 best_model=model_names[match(c(min(RMSE)),RMSE)]
+
+
 ## export as pmml
 export_xml=saveXML(pmml(regmodel, model.name = paste(best_model), app.name = "RR/PMML", dataset = data), file=paste(best_model,".xml"))
+
 # Prediction
 predictPMMLModel=function(dataset,transformTargetAttribute,modelURL,applServerURL)
 {
@@ -135,6 +146,7 @@ predictPMMLModel=function(dataset,transformTargetAttribute,modelURL,applServerUR
 prediction_MLR=predictPMMLModel(dataset = new1,transformTargetAttribute = factor, modelURL = paste("file://", export_xml, sep = ""),
                                 
                                 applServerURL = "http://10.0.2.2:8080/OpenScoring/Scoring")
+
 #--------------------------------------------FUTURE FORECAST--------------------------#
 # Creating Dates for future forecast
 No_ahead=50
@@ -151,6 +163,15 @@ future_trend=((length(trend3)+1):(length(trend3)+No_ahead))
 future_data=cbind.data.frame(trend3=future_trend,Day=FC_Days,WOM=FC_WOM)
 future_Days=as.factor(future_data$Days)
 future_WOM=as.factor(future_data$WOM)
-future_model=randomForest((data$Offered)~trend3+Day+Wom,ntree=1000,data=data)
+
+future_model=lm((data$Offered)~trend3+Day+Wom,data=data) 
 Forecast=predict(future_model,future_data)
 future_fC=cbind.data.frame(FC_Dates,future_data[,c(2:length(future_data))],Forecast)
+
+
+
+
+
+
+
+
