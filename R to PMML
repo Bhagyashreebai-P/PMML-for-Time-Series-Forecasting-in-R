@@ -1,0 +1,108 @@
+
+getwd()
+setwd(C:/Users/karthiv/Documents)
+data=read.csv("C:\\Users\\karthiv\\Desktop\\PMML\\gdp.csv")
+
+time=seq(1,length(data[,2]),1)
+data=data.frame(time,data)
+# install.packages("fpp")
+
+library(fpp)
+library(forecast)
+library(pmml)
+
+# Split Data
+train=data[1:floor(length(data[,2])/4*3),c(1,3)]
+test=data[((floor(length(data[,2])/4*3))+1):length(data[,2]),c(1,3)]
+test1=data.frame(test[,-2])
+colnames(test1)="time"
+
+# Time Series Linear Model
+regmodel=lm(train[,2]~time,data=train)
+summary(regmodel)
+
+fcreg=predict(regmodel,test)
+
+#RMSE for reg
+Predict_data=data.frame(test,fcreg)
+RMSE = function(o, p){sqrt(mean((o - p)^2))}
+rmse_reg=RMSE(Predict_data[,2],Predict_data[,3])
+rmse_reg
+
+## export as pmml
+export_xml=saveXML(pmml(regmodel, model.name = "Time Series linear Regression", app.name = "RR/PMML", dataset = data), file=paste("Time Series Linear Model",".xml"))
+
+# Prediction
+predictPMMLModel=function(dataset,transformTargetAttribute,modelURL,applServerURL)
+{
+  require(XML)
+  require(RCurl)
+  header <- paste(colnames(dataset), collapse=",") # extract header
+  # transformation to characters is necessary to avoid some “bad surprise” 
+  # from R's handling of factor attributes
+  datasetTransf <- data.frame(lapply(dataset, as.character), stringsAsFactors=FALSE)
+  dataString <- paste(header,"|", paste(do.call("rbind",by(datasetTransf, 1:nrow(datasetTransf), function(row){paste(row, collapse=",")
+  }, simplify = FALSE)), collapse ="|"), "|", sep = "")
+  # create xml document
+  xmlHeader <- xmlPINode(sys = 'xml', value = 'version="1.0" encoding="UTF-8"')
+  xmlRequest <- xmlNode("scoring_request", 
+                        xmlNode("pmml_url", modelURL), 
+                        xmlNode("model_name"),
+                        xmlNode("csv_input_rows",xmlCDataNode(dataString)))
+  # xml request as string
+  fullXMLRequest <- paste(toString(xmlHeader),"\n", gsub(" ", "", toString(xmlRequest, sep=""), fixed = TRUE))
+  # http post request
+  r = dynCurlReader()
+  curlPerform(postfields = fullXMLRequest, url = applServerURL, verbose = TRUE, post = 1L, writefunction = r$update)
+  r$value()
+  # parse results - !!caution: currently no error checking!!
+  tmp <- xmlTreeParse(r$value())
+  predictionString <- xmlValue(tmp[[1]][[1]][[4]])
+  # extract predictions line by line
+  predictionLines <- strsplit(predictionString, split ="|", fixed = TRUE)[[1]][-1]
+  predictions <- transformTargetAttribute(sapply(predictionLines, function(s){gsub('\"','',
+                                                                                   tail(strsplit(s, ',', fixed = TRUE)[[1]], n=1))}))
+  names(predictions)=NULL
+  return(predictions)
+}
+# prediction
+prediction_MLR=predictPMMLModel(dataset = test1,transformTargetAttribute = factor, modelURL = paste("file://", export_xml, sep = ""),
+                                applServerURL = "http://localhost/OpenScoring/Scoring")
+
+
+
+methods(pmml)
+#r2pmml
+library(forecast)
+model=auto.arima(data[,2])
+forecast=forecast(model,h=5)
+
+library("devtools")
+library(RCurl)
+library(httr)
+set_config( config( ssl_verifypeer = 0L ) )
+install_github(repo = "jpmml/r2pmml",force = TRUE)
+library("r2pmml")
+r2pmml(model, "ets.pmml")
+saveRDS(model,"model.rds")
+
+Error-solution request
+
+https://github.com/jpmml/r2pmml/issues/7
+
+
+#Graphical Representation
+library(forecast)
+model=auto.arima(data[,2])
+forecast=forecast(model,h=5)
+
+x=seq(1,55,1)
+y=data$GDP
+a=data.frame(x,y,name="observation")
+x=seq(56,60,1)
+y=forecast$mean
+b=data.frame(x,y,name="forecast")
+final_data=rbind(a,b)
+ggplot(final_data,aes(x=x,y=y,colour=name))+geom_line()
+
+
